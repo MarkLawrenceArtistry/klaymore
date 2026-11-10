@@ -104,7 +104,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border py-8 text-center bg-background">
         <p className="text-foreground/40 text-sm">
-          © {new Date().getFullYear()} Klaymore Hub. All rights reserved.
+          Klaymore Hub. All rights reserved.
         </p>
       </footer>
     </div>
