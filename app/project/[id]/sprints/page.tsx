@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
-import { Plus, CheckCircle2, Circle, Clock, Filter, Search, Trash2, Edit } from "lucide-react";
+import { Plus, CheckCircle2, Circle, Clock, Filter, Search, Trash2, Edit, Edit2 } from "lucide-react";
 
 export default function SprintsPage() {
   const params = useParams();
@@ -24,6 +24,7 @@ export default function SprintsPage() {
 
   const [editingSprint, setEditingSprint] = useState<any>(null);
   const [updating, setUpdating] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
 
   useEffect(() => {
     if (projectId) {
@@ -63,22 +64,26 @@ export default function SprintsPage() {
   const handleCreateSprint = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
+    
+    try {
+      // 1. Create Sprint
+      const { data: sprint, error: sprintError } = await supabase
+        .from("sprints")
+        .insert([{
+          project_id: projectId,
+          title: newSprint.title,
+          description: newSprint.description,
+          start_date: newSprint.start_date || null,
+          end_date: newSprint.end_date,
+          is_current: true
+        }])
+        .select().single();
 
-    const { data: sprint, error: sprintError } = await supabase
-      .from("sprints")
-      .insert([{
-        project_id: projectId,
-        title: newSprint.title,
-        description: newSprint.description,
-        start_date: newSprint.start_date || null,
-        end_date: newSprint.end_date,
-        is_current: true
-      }])
-      .select().single();
+      if (sprintError) throw sprintError;
 
-    if (sprint && !sprintError) {
+      // 2. Create Tasks
       const validTasks = newTasks.filter(t => t.title.trim() !== "");
-      if (validTasks.length > 0) {
+      if (validTasks.length > 0 && sprint) {
         const tasksToInsert = validTasks.map(t => ({
           project_id: projectId,
           sprint_id: sprint.id,
@@ -87,37 +92,65 @@ export default function SprintsPage() {
           status: 'todo',
           priority: 'medium'
         }));
-        await supabase.from("tasks").insert(tasksToInsert);
+        
+        const { error: tasksError } = await supabase.from("tasks").insert(tasksToInsert);
+        if (tasksError) throw tasksError;
       }
 
       setNewSprint({ title: "", description: "", start_date: "", end_date: "" });
       setNewTasks([{ title: "", assigned_to: "" }]);
       setShowCreateModal(false);
       fetchSprintsAndTeam();
+      
+    } catch (err: any) {
+      if (err.message?.includes("start_date")) {
+        alert("Database Error: You are missing the 'start_date' column. Please run this in Supabase SQL Editor: ALTER TABLE public.sprints ADD COLUMN start_date date;");
+      } else {
+        alert(`Creation failed: ${err.message}`);
+      }
+    } finally {
+      setCreating(false);
     }
-    setCreating(false);
   };
 
   const handleUpdateSprint = async (e: React.FormEvent) => {
     e.preventDefault();
     setUpdating(true);
 
-    const { error } = await supabase
-      .from("sprints")
-      .update({
-        title: editingSprint.title,
-        description: editingSprint.description,
-        start_date: editingSprint.start_date || null,
-        end_date: editingSprint.end_date,
-        is_current: editingSprint.is_current
-      })
-      .eq("id", editingSprint.id);
+    try {
+      const { error } = await supabase
+        .from("sprints")
+        .update({
+          title: editingSprint.title,
+          description: editingSprint.description,
+          start_date: editingSprint.start_date || null,
+          end_date: editingSprint.end_date,
+          is_current: editingSprint.is_current
+        })
+        .eq("id", editingSprint.id);
 
-    if (!error) {
+      if (error) throw error;
+
       setEditingSprint(null);
       fetchSprintsAndTeam();
+    } catch (err: any) {
+      if (err.message?.includes("start_date")) {
+        alert("Database Error: You are missing the 'start_date' column. Please run this in Supabase SQL Editor: ALTER TABLE public.sprints ADD COLUMN start_date date;");
+      } else {
+        alert(`Update failed: ${err.message}`);
+      }
+    } finally {
+      setUpdating(false);
     }
-    setUpdating(false);
+  };
+
+  // Helper to fix the dates for the HTML <input type="date">
+  const openEditSprintModal = (sprint: any) => {
+    setEditingSprint({
+      ...sprint,
+      start_date: sprint.start_date ? sprint.start_date.split('T')[0] : "",
+      end_date: sprint.end_date ? sprint.end_date.split('T')[0] : ""
+    });
   };
 
   const toggleTaskStatus = async (taskId: string, currentStatus: string) => {
@@ -141,20 +174,53 @@ export default function SprintsPage() {
       .eq("id", taskId);
   };
 
+  // Dedicated function for inline dropdown changes
   const handleAssigneeChange = async (taskId: string, newAssignee: string) => {
-    setSprints(currentSprints =>
-      currentSprints.map(s => ({
-        ...s,
-        tasks: s.tasks.map((t: any) =>
-          t.id === taskId ? { ...t, assigned_to: newAssignee || null } : t
-        )
-      }))
-    );
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ assigned_to: newAssignee || null })
+        .eq("id", taskId);
 
-    await supabase
-      .from("tasks")
-      .update({ assigned_to: newAssignee || null })
-      .eq("id", taskId);
+      if (error) throw error;
+      
+      // Update UI only if DB call succeeds
+      setSprints(currentSprints =>
+        currentSprints.map(s => ({
+          ...s,
+          tasks: s.tasks.map((t: any) =>
+            t.id === taskId ? { ...t, assigned_to: newAssignee || null } : t
+          )
+        }))
+      );
+    } catch (err: any) {
+      alert(`Failed to assign member: ${err.message}`);
+    }
+  };
+
+  // Used for editing Task Title
+  const handleUpdateTaskTitle = async () => {
+    if (!editingTask) return;
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ title: editingTask.title })
+        .eq("id", editingTask.id);
+        
+      if (error) throw error;
+      
+      setSprints(currentSprints =>
+        currentSprints.map(s => ({
+          ...s,
+          tasks: s.tasks.map((t: any) =>
+            t.id === editingTask.id ? { ...t, title: editingTask.title } : t
+          )
+        }))
+      );
+      setEditingTask(null);
+    } catch (err: any) {
+      alert(`Failed to update task: ${err.message}`);
+    }
   };
 
   const handleDeleteSprint = async (sprintId: string) => {
@@ -183,18 +249,18 @@ export default function SprintsPage() {
   );
 
   return (
-    <div className="p-8 max-w-4xl mx-auto h-full flex flex-col">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto h-full flex flex-col">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Project Sprints</h1>
-          <p className="text-sm text-foreground/60">Newsfeed of your team's ongoing and past sprints.</p>
+          <p className="text-sm text-foreground/60 mt-1">Newsfeed of your team's ongoing and past sprints.</p>
         </div>
         {currentUserRole === 'Project Manager' && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-md transition-colors text-sm font-medium"
           >
-            <Plus size={16} /> New Sprint
+            <Plus size={16} /> <span className="hidden sm:inline">New Sprint</span>
           </button>
         )}
       </div>
@@ -236,7 +302,7 @@ export default function SprintsPage() {
           filteredSprints.map((sprint) => (
             <div
               key={sprint.id}
-              className={`p-6 border rounded-xl shadow-sm transition-all duration-300 relative group ${
+              className={`p-4 sm:p-6 border rounded-xl shadow-sm transition-all duration-300 relative group ${
                 !sprint.is_current
                   ? 'bg-surface/50 border-border/50 opacity-60 grayscale hover:grayscale-0'
                   : 'bg-background border-border border-l-4 border-l-accent'
@@ -244,8 +310,8 @@ export default function SprintsPage() {
             >
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h2 className="text-xl font-bold mb-1">{sprint.title}</h2>
-                  <div className="flex items-center gap-2 text-xs text-foreground/60 font-medium">
+                  <h2 className="text-xl font-bold mb-1 pr-2">{sprint.title}</h2>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/60 font-medium">
                     <Clock size={14} />
                     <span>
                       {sprint.start_date ? `${new Date(sprint.start_date).toLocaleDateString()} - ` : ''} 
@@ -260,9 +326,9 @@ export default function SprintsPage() {
                 </div>
 
                 {currentUserRole === 'Project Manager' && (
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 sm:gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => setEditingSprint(sprint)}
+                      onClick={() => openEditSprintModal(sprint)}
                       className="p-2 text-foreground/50 hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
                       title="Edit Sprint"
                     >
@@ -290,27 +356,29 @@ export default function SprintsPage() {
                   return (
                     <div
                       key={task.id}
-                      className={`flex items-center justify-between p-3 rounded-md border group/task ${isDone ? 'bg-surface/50 border-border/50 text-foreground/50' : 'bg-background border-border'}`}
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-md border group/task gap-3 sm:gap-0 ${isDone ? 'bg-surface/50 border-border/50 text-foreground/50' : 'bg-background border-border'}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => toggleTaskStatus(task.id, task.status)}>
+                      <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto">
+                        <button onClick={() => toggleTaskStatus(task.id, task.status)} className="mt-0.5 sm:mt-0">
                           {isDone ? (
-                            <CheckCircle2 size={18} className="text-accent" />
+                            <CheckCircle2 size={18} className="text-accent flex-shrink-0" />
                           ) : (
-                            <Circle size={18} className="text-foreground/40 hover:text-accent transition-colors" />
+                            <Circle size={18} className="text-foreground/40 hover:text-accent transition-colors flex-shrink-0" />
                           )}
                         </button>
-                        <span className={`text-sm ${isDone ? 'line-through' : ''}`}>
+                        <span className={`text-sm break-words ${isDone ? 'line-through' : ''}`}>
                           {task.title}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 self-end sm:self-auto w-full sm:w-auto pl-8 sm:pl-0 border-t sm:border-none border-border pt-3 sm:pt-0">
+                        
+                        {/* Member Assigner Dropdown */}
                         {currentUserRole === 'Project Manager' ? (
                           <select
                             value={task.assigned_to || ""}
                             onChange={(e) => handleAssigneeChange(task.id, e.target.value)}
-                            className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-foreground/60 focus:outline-none focus:border-accent cursor-pointer"
+                            className="text-xs px-2 py-1.5 bg-surface border border-border rounded-md text-foreground/70 focus:outline-none focus:border-accent cursor-pointer max-w-[150px]"
                           >
                             <option value="">Unassigned</option>
                             {teamMembers.map(m => (
@@ -320,31 +388,42 @@ export default function SprintsPage() {
                             ))}
                           </select>
                         ) : task.assigned_to ? (
-                          <div className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-foreground/60">
+                          <div className="text-[11px] px-2 py-1 bg-surface border border-border rounded-md text-foreground/60 truncate max-w-[120px]" title="Assigned Member">
                             {teamMembers.find(m => m.user_id === task.assigned_to)?.nickname ||
                              teamMembers.find(m => m.user_id === task.assigned_to)?.profiles?.email ||
                              "Unknown"}
                           </div>
                         ) : (
-                          <div className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-foreground/40 italic">
+                          <div className="text-[11px] px-2 py-1 bg-surface border border-border rounded-md text-foreground/40 italic">
                             Unassigned
                           </div>
                         )}
                         
+                        {/* Task Actions */}
                         {currentUserRole === 'Project Manager' && (
-                          <button
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="p-1 text-foreground/40 hover:text-red-500 opacity-0 group-hover/task:opacity-100 transition-opacity"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover/task:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => setEditingTask(task)}
+                              className="p-1.5 text-foreground/50 hover:text-accent bg-surface hover:bg-accent/10 border border-transparent hover:border-accent/20 rounded"
+                              title="Edit Task Title"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="p-1.5 text-foreground/50 hover:text-red-500 bg-surface hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded"
+                              title="Delete Task"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
                   );
                 })}
                 {sprint.tasks?.length === 0 && (
-                  <p className="text-sm text-foreground/40 italic">No tasks assigned to this sprint.</p>
+                  <p className="text-sm text-foreground/40 italic px-2">No tasks assigned to this sprint.</p>
                 )}
               </div>
             </div>
@@ -352,6 +431,7 @@ export default function SprintsPage() {
         )}
       </div>
 
+      {/* CREATE SPRINT MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-background border border-border rounded-xl p-6 w-full max-w-2xl shadow-lg my-8">
@@ -406,10 +486,11 @@ export default function SprintsPage() {
         </div>
       )}
 
+      {/* EDIT SPRINT MODAL */}
       {editingSprint && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-background border border-border rounded-xl p-6 w-full max-w-2xl shadow-lg my-8">
-            <h2 className="text-xl font-bold mb-6">Edit Sprint</h2>
+            <h2 className="text-xl font-bold mb-6">Edit Sprint Details</h2>
             <form onSubmit={handleUpdateSprint} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
@@ -431,7 +512,7 @@ export default function SprintsPage() {
                   <input type="date" required value={editingSprint.end_date || ""} onChange={(e) => setEditingSprint({ ...editingSprint, end_date: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent" />
                 </div>
 
-                <div className="col-span-2 md:col-span-1 flex items-end pb-2">
+                <div className="col-span-2 flex items-end pb-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -449,6 +530,34 @@ export default function SprintsPage() {
                 <button type="submit" disabled={updating} className="px-4 py-2 text-sm font-medium bg-accent hover:bg-accent-hover text-white rounded-md transition-colors disabled:opacity-50">{updating ? "Saving..." : "Save Changes"}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT INDIVIDUAL TASK TITLE MODAL */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-sm shadow-lg">
+            <h2 className="text-xl font-bold mb-6">Edit Task Title</h2>
+            <div className="space-y-4">
+              <div>
+                <input 
+                  type="text" 
+                  value={editingTask.title} 
+                  onChange={(e) => setEditingTask({...editingTask, title: e.target.value})}
+                  className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent" 
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-8">
+                <button onClick={() => setEditingTask(null)} className="px-4 py-2 text-sm font-medium text-foreground border border-transparent hover:border-border rounded-md transition-colors">Cancel</button>
+                <button
+                  onClick={handleUpdateTaskTitle}
+                  className="px-4 py-2 text-sm font-medium bg-accent hover:bg-accent-hover text-white rounded-md transition-colors"
+                >
+                  Save Title
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
