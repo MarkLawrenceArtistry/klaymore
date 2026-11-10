@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
-import { CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { CheckCircle2, Circle, AlertCircle, Copy } from "lucide-react";
 
 export default function MyTasksPage() {
   const params = useParams();
@@ -12,6 +12,7 @@ export default function MyTasksPage() {
   const [sprintTasks, setSprintTasks] = useState<any[]>([]);
   const [backlogTasks, setBacklogTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (projectId) fetchMyTasks();
@@ -19,12 +20,10 @@ export default function MyTasksPage() {
 
   const fetchMyTasks = async () => {
     setLoading(true);
-    
-    // Get logged in user
+
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) return;
 
-    // Fetch from Sprint Tasks
     const { data: sTasks } = await supabase
       .from("tasks")
       .select("*, sprints(title)")
@@ -32,7 +31,6 @@ export default function MyTasksPage() {
       .eq("assigned_to", userData.user.id)
       .order("created_at", { ascending: false });
 
-    // Fetch from Backlog Tasks
     const { data: bTasks } = await supabase
       .from("backlog_tasks")
       .select("*")
@@ -42,26 +40,32 @@ export default function MyTasksPage() {
 
     if (sTasks) setSprintTasks(sTasks);
     if (bTasks) setBacklogTasks(bTasks);
-    
+
     setLoading(false);
   };
 
   const updateStatus = async (taskId: string, newStatus: string, table: "tasks" | "backlog_tasks") => {
-    // Optimistic UI update
     if (table === "tasks") {
       setSprintTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
     } else {
       setBacklogTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
     }
 
-    // DB Update
     await supabase
       .from(table)
-      .update({ 
+      .update({
         status: newStatus,
         completed_at: newStatus === 'done' ? new Date().toISOString() : null
       })
       .eq("id", taskId);
+  };
+
+  const handleCopyBacklog = () => {
+    if (backlogTasks.length === 0) return;
+    const text = backlogTasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} (${t.status})`).join('\n');
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const getPriorityColor = (priority: string) => {
@@ -75,7 +79,7 @@ export default function MyTasksPage() {
 
   const TaskCard = ({ task, table, sprintName }: { task: any, table: "tasks" | "backlog_tasks", sprintName?: string }) => {
     const isDone = task.status === 'done';
-    
+
     return (
       <div className={`p-4 border rounded-xl flex items-center justify-between transition-colors ${isDone ? 'bg-surface/50 border-border/50 text-foreground/50' : 'bg-background border-border'}`}>
         <div className="flex flex-col flex-1">
@@ -129,11 +133,9 @@ export default function MyTasksPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
-          {/* Active Sprint Tasks */}
           <div className="space-y-4">
             <h2 className="font-bold text-lg flex items-center justify-between border-b border-border pb-2">
-              Active Sprints 
+              Active Sprints
               <span className="bg-accent/10 text-accent text-xs px-2 py-1 rounded-full">{sprintTasks.length}</span>
             </h2>
             <div className="space-y-3">
@@ -147,11 +149,19 @@ export default function MyTasksPage() {
             </div>
           </div>
 
-          {/* Backlog Tasks */}
           <div className="space-y-4">
             <h2 className="font-bold text-lg flex items-center justify-between border-b border-border pb-2">
-              Backlog 
-              <span className="bg-surface text-foreground/60 border border-border text-xs px-2 py-1 rounded-full">{backlogTasks.length}</span>
+              <div className="flex items-center gap-2">
+                Backlog
+                <span className="bg-surface text-foreground/60 border border-border text-xs px-2 py-1 rounded-full">{backlogTasks.length}</span>
+              </div>
+              <button 
+                onClick={handleCopyBacklog} 
+                className="flex items-center gap-1.5 text-xs bg-surface hover:bg-border transition-colors px-2.5 py-1.5 rounded-md text-foreground/70 border border-border"
+              >
+                {copied ? <CheckCircle2 size={14} className="text-green-500" /> : <Copy size={14} />}
+                {copied ? "Copied" : "Copy Tasks"}
+              </button>
             </h2>
             <div className="space-y-3">
               {backlogTasks.length === 0 ? (
@@ -163,7 +173,6 @@ export default function MyTasksPage() {
               )}
             </div>
           </div>
-
         </div>
       )}
     </div>

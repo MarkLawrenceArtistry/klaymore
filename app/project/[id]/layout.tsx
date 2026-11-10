@@ -14,11 +14,14 @@ import {
   Moon,
   ClipboardList,
   UserCircle,
-  LogOut // Added LogOut icon
+  LogOut,
+  Menu,
+  X
 } from "lucide-react";
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
   const params = useParams();
   const router = useRouter();
@@ -35,7 +38,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     { name: "Sprints", href: `/project/${projectId}/sprints`, icon: ListTodo },
     { name: "Roadmap", href: `/project/${projectId}/roadmap`, icon: CalendarDays },
     { name: "Backlog", href: `/project/${projectId}/backlog`, icon: KanbanSquare },
-    { name: "Settings", href: `/project/${projectId}/settings`, icon: Settings }, // Added Settings
+    { name: "Settings", href: `/project/${projectId}/settings`, icon: Settings },
   ];
 
   useEffect(() => {
@@ -43,12 +46,16 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     if (projectId) fetchLayoutData();
   }, [projectId]);
 
+  // Close sidebar on route change for mobile
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
+
   const fetchLayoutData = async () => {
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
       setUserEmail(userData.user.email || "");
-      
-      // Get role
+
       const { data: member } = await supabase
         .from("project_members")
         .select("role")
@@ -72,22 +79,33 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   };
 
   const handleExitProject = () => {
-    // Force fresh data load by tricking the cache with a unique timestamp
     window.location.href = `/dashboard?ref=${Date.now()}`;
   };
 
   if (!mounted) return null;
 
-  // Hide settings if not a PM (optional, but good UX)
-  const filteredNav = navItems.filter(item => 
+  const filteredNav = navItems.filter(item =>
     item.name !== "Settings" || userRole === "Project Manager"
   );
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      <aside className="w-64 bg-surface border-r border-border flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-border">
-          <div className="flex items-center gap-3 w-full">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border flex flex-col transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="h-16 flex items-center justify-between px-6 border-b border-border">
+          <div className="flex items-center gap-3 w-full overflow-hidden">
             <div className="w-8 h-8 flex-shrink-0 bg-border rounded flex items-center justify-center overflow-hidden">
               <img src="/placeholder.png" alt="Logo" className="w-full h-full" />
             </div>
@@ -95,6 +113,9 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
               {projectName}
             </span>
           </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-foreground/50 hover:text-foreground">
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
@@ -139,15 +160,34 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
             onClick={handleExitProject}
             className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-foreground/70 hover:bg-border/50 hover:text-red-500 transition-colors"
           >
-            <LogOut size={18} /> {/* Changed to LogOut icon */}
+            <LogOut size={18} />
             Exit Project
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-background">
-        {children}
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+        {/* Mobile Header (Hidden on Desktop) */}
+        <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-surface flex-shrink-0 h-16">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-8 h-8 flex-shrink-0 bg-border rounded flex items-center justify-center overflow-hidden">
+              <img src="/placeholder.png" alt="Logo" className="w-full h-full" />
+            </div>
+            <span className="font-bold text-sm truncate" title={projectName}>{projectName}</span>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(true)} 
+            className="p-2 text-foreground/70 hover:text-foreground rounded-md hover:bg-border/50 transition-colors"
+          >
+            <Menu size={24} />
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

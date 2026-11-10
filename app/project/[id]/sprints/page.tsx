@@ -14,14 +14,12 @@ export default function SprintsPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>("member");
   const [loading, setLoading] = useState(true);
 
-  // UI States
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Modals & Forms
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [newSprint, setNewSprint] = useState({ title: "", description: "", end_date: "" });
+  const [newSprint, setNewSprint] = useState({ title: "", description: "", start_date: "", end_date: "" });
   const [newTasks, setNewTasks] = useState([{ title: "", assigned_to: "" }]);
 
   const [editingSprint, setEditingSprint] = useState<any>(null);
@@ -36,15 +34,13 @@ export default function SprintsPage() {
   const fetchSprintsAndTeam = async () => {
     setLoading(true);
 
-    // Get Current User
     const { data: userData } = await supabase.auth.getUser();
 
-    // Fetch Team Members
     const { data: teamData } = await supabase
       .from("project_members")
       .select("id, nickname, role, user_id, profiles(email)")
       .eq("project_id", projectId);
-    
+
     if (teamData) {
       setTeamMembers(teamData);
       if (userData?.user) {
@@ -53,7 +49,6 @@ export default function SprintsPage() {
       }
     }
 
-    // Fetch Sprints
     const { data: sprintsData, error } = await supabase
       .from("sprints")
       .select(`*, tasks (*)`)
@@ -65,7 +60,6 @@ export default function SprintsPage() {
     setLoading(false);
   };
 
-  // --- CREATE LOGIC ---
   const handleCreateSprint = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -76,8 +70,9 @@ export default function SprintsPage() {
         project_id: projectId,
         title: newSprint.title,
         description: newSprint.description,
+        start_date: newSprint.start_date || null,
         end_date: newSprint.end_date,
-        is_current: true 
+        is_current: true
       }])
       .select().single();
 
@@ -95,7 +90,7 @@ export default function SprintsPage() {
         await supabase.from("tasks").insert(tasksToInsert);
       }
 
-      setNewSprint({ title: "", description: "", end_date: "" });
+      setNewSprint({ title: "", description: "", start_date: "", end_date: "" });
       setNewTasks([{ title: "", assigned_to: "" }]);
       setShowCreateModal(false);
       fetchSprintsAndTeam();
@@ -103,7 +98,6 @@ export default function SprintsPage() {
     setCreating(false);
   };
 
-  // --- UPDATE LOGIC ---
   const handleUpdateSprint = async (e: React.FormEvent) => {
     e.preventDefault();
     setUpdating(true);
@@ -113,6 +107,7 @@ export default function SprintsPage() {
       .update({
         title: editingSprint.title,
         description: editingSprint.description,
+        start_date: editingSprint.start_date || null,
         end_date: editingSprint.end_date,
         is_current: editingSprint.is_current
       })
@@ -121,19 +116,17 @@ export default function SprintsPage() {
     if (!error) {
       setEditingSprint(null);
       fetchSprintsAndTeam();
-    } else {
-      console.error("Error updating sprint:", error);
     }
     setUpdating(false);
   };
 
   const toggleTaskStatus = async (taskId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done';
-    
-    setSprints(currentSprints => 
+
+    setSprints(currentSprints =>
       currentSprints.map(s => ({
         ...s,
-        tasks: s.tasks.map((t: any) => 
+        tasks: s.tasks.map((t: any) =>
           t.id === taskId ? { ...t, status: newStatus } : t
         )
       }))
@@ -141,17 +134,32 @@ export default function SprintsPage() {
 
     await supabase
       .from("tasks")
-      .update({ 
+      .update({
         status: newStatus,
-        completed_at: newStatus === 'done' ? new Date().toISOString() : null 
+        completed_at: newStatus === 'done' ? new Date().toISOString() : null
       })
       .eq("id", taskId);
   };
 
-  // --- DELETE LOGIC ---
+  const handleAssigneeChange = async (taskId: string, newAssignee: string) => {
+    setSprints(currentSprints =>
+      currentSprints.map(s => ({
+        ...s,
+        tasks: s.tasks.map((t: any) =>
+          t.id === taskId ? { ...t, assigned_to: newAssignee || null } : t
+        )
+      }))
+    );
+
+    await supabase
+      .from("tasks")
+      .update({ assigned_to: newAssignee || null })
+      .eq("id", taskId);
+  };
+
   const handleDeleteSprint = async (sprintId: string) => {
     if (!confirm("Are you sure you want to delete this sprint? All tasks inside will be permanently deleted.")) return;
-    
+
     const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
     if (!error) {
       setSprints(prev => prev.filter(s => s.id !== sprintId));
@@ -160,7 +168,7 @@ export default function SprintsPage() {
 
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm("Delete this task?")) return;
-    
+
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
     if (!error) {
       setSprints(prev => prev.map(s => ({
@@ -170,13 +178,12 @@ export default function SprintsPage() {
     }
   };
 
-  const filteredSprints = sprints.filter(sprint => 
+  const filteredSprints = sprints.filter(sprint =>
     sprint.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div className="p-8 max-w-4xl mx-auto h-full flex flex-col">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Project Sprints</h1>
@@ -192,7 +199,6 @@ export default function SprintsPage() {
         )}
       </div>
 
-      {/* Toggleable Filters */}
       <div className="mb-8">
         <button
           onClick={() => setShowFilters(!showFilters)}
@@ -218,7 +224,6 @@ export default function SprintsPage() {
         )}
       </div>
 
-      {/* Sprints Newsfeed */}
       <div className="space-y-8 pb-12">
         {loading ? (
           <div className="text-center py-10 text-foreground/50">Loading sprints...</div>
@@ -229,11 +234,11 @@ export default function SprintsPage() {
           </div>
         ) : (
           filteredSprints.map((sprint) => (
-            <div 
-              key={sprint.id} 
+            <div
+              key={sprint.id}
               className={`p-6 border rounded-xl shadow-sm transition-all duration-300 relative group ${
-                !sprint.is_current 
-                  ? 'bg-surface/50 border-border/50 opacity-60 grayscale hover:grayscale-0' 
+                !sprint.is_current
+                  ? 'bg-surface/50 border-border/50 opacity-60 grayscale hover:grayscale-0'
                   : 'bg-background border-border border-l-4 border-l-accent'
               }`}
             >
@@ -242,7 +247,10 @@ export default function SprintsPage() {
                   <h2 className="text-xl font-bold mb-1">{sprint.title}</h2>
                   <div className="flex items-center gap-2 text-xs text-foreground/60 font-medium">
                     <Clock size={14} />
-                    <span>Ends: {new Date(sprint.end_date).toLocaleDateString()}</span>
+                    <span>
+                      {sprint.start_date ? `${new Date(sprint.start_date).toLocaleDateString()} - ` : ''} 
+                      {new Date(sprint.end_date).toLocaleDateString()}
+                    </span>
                     {sprint.is_current && (
                        <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent uppercase tracking-wider text-[10px] font-bold">
                          Active Sprint
@@ -251,17 +259,16 @@ export default function SprintsPage() {
                   </div>
                 </div>
 
-                {/* Edit / Delete Buttons for PM */}
                 {currentUserRole === 'Project Manager' && (
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
+                    <button
                       onClick={() => setEditingSprint(sprint)}
                       className="p-2 text-foreground/50 hover:text-accent hover:bg-accent/10 rounded-md transition-colors"
                       title="Edit Sprint"
                     >
                       <Edit size={16} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDeleteSprint(sprint.id)}
                       className="p-2 text-foreground/50 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                       title="Delete Sprint"
@@ -276,14 +283,13 @@ export default function SprintsPage() {
                 {sprint.description || "No description provided."}
               </div>
 
-              {/* Tasks List */}
               <div className="space-y-2 mt-4">
                 <h4 className="text-sm font-bold text-foreground/70 uppercase tracking-wider mb-3">Sprint Tasks</h4>
                 {sprint.tasks?.map((task: any) => {
                   const isDone = task.status === 'done';
                   return (
-                    <div 
-                      key={task.id} 
+                    <div
+                      key={task.id}
                       className={`flex items-center justify-between p-3 rounded-md border group/task ${isDone ? 'bg-surface/50 border-border/50 text-foreground/50' : 'bg-background border-border'}`}
                     >
                       <div className="flex items-center gap-3">
@@ -298,18 +304,35 @@ export default function SprintsPage() {
                           {task.title}
                         </span>
                       </div>
-                      
+
                       <div className="flex items-center gap-3">
-                        {task.assigned_to && (
+                        {currentUserRole === 'Project Manager' ? (
+                          <select
+                            value={task.assigned_to || ""}
+                            onChange={(e) => handleAssigneeChange(task.id, e.target.value)}
+                            className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-foreground/60 focus:outline-none focus:border-accent cursor-pointer"
+                          >
+                            <option value="">Unassigned</option>
+                            {teamMembers.map(m => (
+                              <option key={m.user_id} value={m.user_id}>
+                                {m.nickname || m.profiles?.email}
+                              </option>
+                            ))}
+                          </select>
+                        ) : task.assigned_to ? (
                           <div className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-foreground/60">
-                            {teamMembers.find(m => m.user_id === task.assigned_to)?.nickname || 
-                             teamMembers.find(m => m.user_id === task.assigned_to)?.profiles?.email || 
+                            {teamMembers.find(m => m.user_id === task.assigned_to)?.nickname ||
+                             teamMembers.find(m => m.user_id === task.assigned_to)?.profiles?.email ||
                              "Unknown"}
                           </div>
+                        ) : (
+                          <div className="text-xs px-2 py-1 bg-surface border border-border rounded-md text-foreground/40 italic">
+                            Unassigned
+                          </div>
                         )}
-                        {/* Delete Task Button for PM */}
+                        
                         {currentUserRole === 'Project Manager' && (
-                          <button 
+                          <button
                             onClick={() => handleDeleteTask(task.id)}
                             className="p-1 text-foreground/40 hover:text-red-500 opacity-0 group-hover/task:opacity-100 transition-opacity"
                           >
@@ -329,13 +352,11 @@ export default function SprintsPage() {
         )}
       </div>
 
-      {/* --- CREATE MODAL --- */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-background border border-border rounded-xl p-6 w-full max-w-2xl shadow-lg my-8">
             <h2 className="text-xl font-bold mb-6">Plan New Sprint</h2>
             <form onSubmit={handleCreateSprint} className="space-y-4">
-              {/* Form fields same as before... */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1">Sprint Title</label>
@@ -346,6 +367,10 @@ export default function SprintsPage() {
                     <span>Description</span><span className="text-xs text-foreground/50 font-normal">Markdown Supported</span>
                   </label>
                   <textarea required value={newSprint.description} onChange={(e) => setNewSprint({ ...newSprint, description: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent resize-none h-32" placeholder="## Goals&#10;- Implement Auth&#10;- Setup DB" />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <input type="date" required value={newSprint.start_date} onChange={(e) => setNewSprint({ ...newSprint, start_date: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent" />
                 </div>
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-sm font-medium mb-1">End Date</label>
@@ -381,7 +406,6 @@ export default function SprintsPage() {
         </div>
       )}
 
-      {/* --- EDIT MODAL --- */}
       {editingSprint && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-background border border-border rounded-xl p-6 w-full max-w-2xl shadow-lg my-8">
@@ -399,16 +423,19 @@ export default function SprintsPage() {
                   <textarea required value={editingSprint.description} onChange={(e) => setEditingSprint({ ...editingSprint, description: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent resize-none h-32" />
                 </div>
                 <div className="col-span-2 md:col-span-1">
-                  <label className="block text-sm font-medium mb-1">End Date</label>
-                  <input type="date" required value={editingSprint.end_date} onChange={(e) => setEditingSprint({ ...editingSprint, end_date: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent" />
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <input type="date" required value={editingSprint.start_date || ""} onChange={(e) => setEditingSprint({ ...editingSprint, start_date: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent" />
                 </div>
-                
-                {/* Toggle Active/Inactive */}
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-sm font-medium mb-1">End Date</label>
+                  <input type="date" required value={editingSprint.end_date || ""} onChange={(e) => setEditingSprint({ ...editingSprint, end_date: e.target.value })} className="w-full p-2 border border-border rounded-md bg-input-bg focus:outline-none focus:border-accent" />
+                </div>
+
                 <div className="col-span-2 md:col-span-1 flex items-end pb-2">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={editingSprint.is_current} 
+                    <input
+                      type="checkbox"
+                      checked={editingSprint.is_current}
                       onChange={(e) => setEditingSprint({...editingSprint, is_current: e.target.checked})}
                       className="w-4 h-4 accent-accent"
                     />
