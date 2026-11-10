@@ -14,16 +14,14 @@ export default function BacklogPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>("member");
   const [loading, setLoading] = useState(true);
 
-  // Filters
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
 
-  // Modals & Forms
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const initialTaskState = { id: "", title: "", description: "", priority: "medium", status: "todo", assigned_to: "" };
   const [formData, setFormData] = useState(initialTaskState);
 
@@ -41,7 +39,7 @@ export default function BacklogPage() {
       .from("project_members")
       .select("id, nickname, role, user_id, profiles(email)")
       .eq("project_id", projectId);
-    
+
     if (teamData) {
       setTeamMembers(teamData);
       if (userData?.user) {
@@ -50,7 +48,6 @@ export default function BacklogPage() {
       }
     }
 
-    // Fetch Tasks from the new backlog_tasks table
     const { data: tasksData, error } = await supabase
       .from("backlog_tasks")
       .select("*")
@@ -61,7 +58,7 @@ export default function BacklogPage() {
     setLoading(false);
   };
 
-  // --- HTML5 DRAG & DROP LOGIC ---
+
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     e.dataTransfer.setData("taskId", taskId);
     setTimeout(() => {
@@ -74,7 +71,7 @@ export default function BacklogPage() {
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); 
+    e.preventDefault();
   };
 
   const handleDrop = async (e: React.DragEvent, newStatus: string) => {
@@ -82,20 +79,20 @@ export default function BacklogPage() {
     const taskId = e.dataTransfer.getData("taskId");
     if (!taskId) return;
 
-    // Optimistic UI Update
+
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
 
-    // DB Update to backlog_tasks
+
     await supabase
       .from("backlog_tasks")
-      .update({ 
+      .update({
         status: newStatus,
         completed_at: newStatus === 'done' ? new Date().toISOString() : null
       })
       .eq("id", taskId);
   };
 
-  // --- CRUD LOGIC (Project Manager Only) ---
+
   const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -160,14 +157,14 @@ export default function BacklogPage() {
   ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto h-full flex flex-col">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto h-full flex flex-col min-h-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Project Backlog</h1>
-          <p className="text-sm text-foreground/60">Kanban board for managing backlog tasks.</p>
+          <p className="text-sm text-foreground/60 mt-1">Kanban board for managing backlog tasks.</p>
         </div>
         {currentUserRole === 'Project Manager' && (
-          <button onClick={() => openModal()} className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-md transition-colors text-sm font-medium">
+          <button onClick={() => openModal()} className="flex w-full sm:w-auto justify-center items-center gap-2 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-md transition-colors text-sm font-medium shadow-sm">
             <Plus size={16} /> New Task
           </button>
         )}
@@ -179,12 +176,12 @@ export default function BacklogPage() {
         </button>
 
         {showFilters && (
-          <div className="flex gap-4 p-4 bg-surface border border-border rounded-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-col sm:flex-row gap-4 p-4 bg-surface border border-border rounded-lg animate-in fade-in slide-in-from-top-2 shadow-sm">
             <div className="flex-1 relative">
               <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-foreground/40" />
               <input type="text" placeholder="Search tasks..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:border-accent" />
             </div>
-            <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="bg-background border border-border rounded-md text-sm px-3 py-2 focus:outline-none focus:border-accent w-48">
+            <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="bg-background border border-border rounded-md text-sm px-3 py-2 focus:outline-none focus:border-accent w-full sm:w-48">
               <option value="all">All Priorities</option>
               <option value="high">High Priority</option>
               <option value="medium">Medium Priority</option>
@@ -194,56 +191,61 @@ export default function BacklogPage() {
         )}
       </div>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden pb-4">
-        {loading ? (
-          <div className="col-span-3 text-center py-10 text-foreground/50">Loading board...</div>
-        ) : (
-          columns.map(column => (
-            <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className="bg-surface border border-border rounded-xl p-4 flex flex-col h-full overflow-hidden">
-              <div className="flex justify-between items-center mb-4 px-1">
-                <h3 className="font-bold text-sm uppercase tracking-wider text-foreground/70">{column.title}</h3>
-                <span className="bg-background border border-border text-xs px-2 py-1 rounded-full font-medium">
-                  {filteredTasks.filter(t => t.status === column.id).length}
-                </span>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                {filteredTasks.filter(t => t.status === column.id).map(task => {
-                  const assignedMember = teamMembers.find(m => m.user_id === task.assigned_to);
-                  const memberEmail = (assignedMember?.profiles as any)?.email || (assignedMember?.profiles as any[])?.[0]?.email || "Unknown";
+      {/* HORIZONTAL SCROLL ON MOBILE FOR KANBAN BOARD */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 custom-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex lg:grid lg:grid-cols-3 gap-6 h-full min-w-[850px] lg:min-w-0">
+          {loading ? (
+            <div className="col-span-3 text-center py-10 text-foreground/50">Loading board...</div>
+          ) : (
+            columns.map(column => (
+              <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className="bg-surface border border-border rounded-xl p-4 flex flex-col h-full overflow-hidden flex-1 w-full max-w-[350px] lg:max-w-none shadow-sm">
+                <div className="flex justify-between items-center mb-4 px-1">
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-foreground/70">{column.title}</h3>
+                  <span className="bg-background border border-border text-xs px-2 py-1 rounded-full font-medium">
+                    {filteredTasks.filter(t => t.status === column.id).length}
+                  </span>
+                </div>
 
-                  return (
-                    <div key={task.id} draggable onDragStart={(e) => handleDragStart(e, task.id)} onDragEnd={handleDragEnd} className="bg-background border border-border p-4 rounded-lg shadow-sm cursor-grab active:cursor-grabbing group hover:border-accent transition-colors">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${getPriorityColor(task.priority)}`}>{task.priority}</div>
-                        {currentUserRole === 'Project Manager' && (
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openModal(task)} className="p-1 text-foreground/50 hover:text-accent rounded transition-colors"><Edit2 size={14} /></button>
-                            <button onClick={() => handleDeleteTask(task.id)} className="p-1 text-foreground/50 hover:text-red-500 rounded transition-colors"><Trash2 size={14} /></button>
-                          </div>
-                        )}
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                  {filteredTasks.filter(t => t.status === column.id).map(task => {
+                    const assignedMember = teamMembers.find(m => m.user_id === task.assigned_to);
+                    const memberEmail = (assignedMember?.profiles as any)?.email || (assignedMember?.profiles as any[])?.[0]?.email || "Unknown";
+
+                    return (
+                      <div key={task.id} draggable onDragStart={(e) => handleDragStart(e, task.id)} onDragEnd={handleDragEnd} className="bg-background border border-border p-4 rounded-lg shadow-sm cursor-grab active:cursor-grabbing group hover:border-accent transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${getPriorityColor(task.priority)}`}>{task.priority}</div>
+                          {currentUserRole === 'Project Manager' && (
+                            <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openModal(task)} className="p-1 text-foreground/50 hover:text-accent rounded transition-colors bg-surface lg:bg-transparent"><Edit2 size={14} /></button>
+                              <button onClick={() => handleDeleteTask(task.id)} className="p-1 text-foreground/50 hover:text-red-500 rounded transition-colors bg-surface lg:bg-transparent"><Trash2 size={14} /></button>
+                            </div>
+                          )}
+                        </div>
+
+                        <h4 className="font-semibold text-sm mb-1 break-words">{task.title}</h4>
+                        {task.description && <p className="text-xs text-foreground/60 line-clamp-2 mb-3 break-words">{task.description}</p>}
+
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
+                          <div className="flex items-center gap-1.5 text-xs text-foreground/50 font-medium hidden lg:flex"><GripVertical size={12} /> Drag</div>
+                          <div className="flex items-center gap-1.5 text-xs text-foreground/50 font-medium lg:hidden"><GripVertical size={12} /> Tap & Hold</div>
+                          
+                          {task.assigned_to ? (
+                            <div className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold border border-accent/30 flex-shrink-0" title={memberEmail}>
+                              {assignedMember?.nickname?.[0]?.toUpperCase() || "U"}
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-surface border border-border flex items-center justify-center text-foreground/30 flex-shrink-0" title="Unassigned"><AlertCircle size={12} /></div>
+                          )}
+                        </div>
                       </div>
-                      
-                      <h4 className="font-semibold text-sm mb-1">{task.title}</h4>
-                      {task.description && <p className="text-xs text-foreground/60 line-clamp-2 mb-3">{task.description}</p>}
-                      
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/50">
-                        <div className="flex items-center gap-1.5 text-xs text-foreground/50 font-medium"><GripVertical size={12} /> Drag</div>
-                        {task.assigned_to ? (
-                          <div className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold border border-accent/30" title={memberEmail}>
-                            {assignedMember?.nickname?.[0]?.toUpperCase() || "U"}
-                          </div>
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-surface border border-border flex items-center justify-center text-foreground/30" title="Unassigned"><AlertCircle size={12} /></div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
 
       {showModal && (
@@ -269,7 +271,7 @@ export default function BacklogPage() {
               </div>
               <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-border">
                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-foreground hover:bg-surface border border-transparent hover:border-border rounded-md transition-colors">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium bg-accent hover:bg-accent-hover text-white rounded-md transition-colors disabled:opacity-50">{saving ? "Saving..." : "Save Task"}</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium bg-accent hover:bg-accent-hover text-white rounded-md transition-colors disabled:opacity-50 shadow-sm">{saving ? "Saving..." : "Save Task"}</button>
               </div>
             </form>
           </div>
