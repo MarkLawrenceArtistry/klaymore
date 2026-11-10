@@ -11,26 +11,23 @@
 
 @layer base {
   :root {
-    /* 60% Dominant: Pure White Background */
+    /* Softened Light Mode */
     --bg: #ffffff;
-    /* 30% Secondary: Very light grays for cards, sidebar, and borders */
-    --surface: #f9fafb; 
+    --surface: #f3f4f6;
     --border: #e5e7eb;
-    /* 10% Accent: Purple */
     --accent: #8b5cf6;
     --accent-hover: #7c3aed;
-    /* Text: Pure Black */
-    --text: #000000;
+    --text: #1f2937; /* Dark gray instead of absolute black */
   }
 
-  /* We will trigger this manually via a toggle button later */
-  .dark {
-    --bg: #09090b;
-    --surface: #18181b;
-    --border: #27272a;
+  :root.dark {
+    /* Softened Dark Mode */
+    --bg: #121212; /* Deep gray instead of absolute black */
+    --surface: #1e1e1e;
+    --border: #2d2d2d;
     --accent: #a78bfa;
     --accent-hover: #8b5cf6;
-    --text: #ffffff;
+    --text: #e5e5e5; /* Soft white instead of absolute white */
   }
 
   body {

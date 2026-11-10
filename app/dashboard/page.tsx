@@ -135,8 +135,9 @@ export default function GlobalDashboard() {
             {projects.map((project) => (
               <div
                 key={project.id}
-                onClick={() => router.push(`/project/${project.id}/dashboard`)}
-                className="p-6 border border-border rounded-xl bg-input-bg hover:border-accent cursor-pointer transition-all hover:shadow-sm group"
+                // CHANGED THIS LINE: Forces full fresh page load into the project
+                onClick={() => window.location.href = `/project/${project.id}/dashboard`}
+                className="p-6 border border-border rounded-xl bg-input-bg hover:border-accent cursor-pointer transition-all hover:shadow-sm group relative"
               >
                 <h3 className="font-semibold text-lg mb-2 group-hover:text-accent transition-colors">
                   {project.name}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname, useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   LayoutDashboard,
@@ -13,19 +13,20 @@ import {
   Settings,
   Moon,
   ClipboardList,
-  UserCircle
+  UserCircle,
+  LogOut // Added LogOut icon
 } from "lucide-react";
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
-  // 1. Add mounted state to bypass Vercel Static Build errors
   const [mounted, setMounted] = useState(false);
-  
   const pathname = usePathname();
   const params = useParams();
+  const router = useRouter();
   const projectId = params?.id as string;
 
   const [projectName, setProjectName] = useState("Loading...");
   const [userEmail, setUserEmail] = useState("");
+  const [userRole, setUserRole] = useState("member");
 
   const navItems = [
     { name: "Dashboard", href: `/project/${projectId}/dashboard`, icon: LayoutDashboard },
@@ -34,23 +35,35 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     { name: "Sprints", href: `/project/${projectId}/sprints`, icon: ListTodo },
     { name: "Roadmap", href: `/project/${projectId}/roadmap`, icon: CalendarDays },
     { name: "Backlog", href: `/project/${projectId}/backlog`, icon: KanbanSquare },
+    { name: "Settings", href: `/project/${projectId}/settings`, icon: Settings }, // Added Settings
   ];
 
   useEffect(() => {
-    setMounted(true); // Tells the app it is now safely running on the client
+    setMounted(true);
     if (projectId) fetchLayoutData();
   }, [projectId]);
 
   const fetchLayoutData = async () => {
     const { data: userData } = await supabase.auth.getUser();
-    if (userData?.user) setUserEmail(userData.user.email || "");
+    if (userData?.user) {
+      setUserEmail(userData.user.email || "");
+      
+      // Get role
+      const { data: member } = await supabase
+        .from("project_members")
+        .select("role")
+        .eq("project_id", projectId)
+        .eq("user_id", userData.user.id)
+        .single();
+      if (member) setUserRole(member.role);
+    }
 
     const { data: project } = await supabase
       .from("projects")
       .select("name")
       .eq("id", projectId)
       .single();
-      
+
     if (project) setProjectName(project.name);
   };
 
@@ -59,12 +72,16 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   };
 
   const handleExitProject = () => {
-    // 2. HARD REDIRECT: Bypasses Next.js cache, forcing projects to refresh immediately
+    // Forces browser to dump cache and fully load the dashboard
     window.location.href = "/dashboard";
   };
 
-  // 3. Prevent Vercel from trying to prerender this component at build time
   if (!mounted) return null;
+
+  // Hide settings if not a PM (optional, but good UX)
+  const filteredNav = navItems.filter(item => 
+    item.name !== "Settings" || userRole === "Project Manager"
+  );
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -84,7 +101,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
           <div className="text-xs font-bold text-foreground/50 mb-4 px-2 uppercase tracking-wider">
             Menu
           </div>
-          {navItems.map((item) => {
+          {filteredNav.map((item) => {
             const isActive = pathname?.includes(item.href);
             return (
               <Link
@@ -122,7 +139,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
             onClick={handleExitProject}
             className="flex w-full items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-foreground/70 hover:bg-border/50 hover:text-red-500 transition-colors"
           >
-            <Settings size={18} />
+            <LogOut size={18} /> {/* Changed to LogOut icon */}
             Exit Project
           </button>
         </div>
