@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* 60% Dominant: Pure White Background */
+    --bg: #ffffff;
+    /* 30% Secondary: Very light grays for cards, sidebar, and borders */
+    --surface: #f9fafb; 
+    --border: #e5e7eb;
+    /* 10% Accent: Purple */
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    /* Text: Pure Black */
+    --text: #000000;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* We will trigger this manually via a toggle button later */
+  .dark {
+    --bg: #09090b;
+    --surface: #18181b;
+    --border: #27272a;
+    --accent: #a78bfa;
+    --accent-hover: #8b5cf6;
+    --text: #ffffff;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+  }
 }
