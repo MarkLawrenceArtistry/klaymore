@@ -72,8 +72,8 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   };
 
   const handleExitProject = () => {
-    // Forces browser to dump cache and fully load the dashboard
-    window.location.href = "/dashboard";
+    // Force fresh data load by tricking the cache with a unique timestamp
+    window.location.href = `/dashboard?ref=${Date.now()}`;
   };
 
   if (!mounted) return null;
@@ -89,7 +89,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         <div className="h-16 flex items-center px-6 border-b border-border">
           <div className="flex items-center gap-3 w-full">
             <div className="w-8 h-8 flex-shrink-0 bg-border rounded flex items-center justify-center overflow-hidden">
-              <img src="/placeholder.png" alt="Logo" className="w-full h-full opacity-0" />
+              <img src="/placeholder.png" alt="Logo" className="w-full h-full" />
             </div>
             <span className="font-bold text-sm truncate flex-1" title={projectName}>
               {projectName}

@@ -73,21 +73,37 @@ export default function ProjectSettings() {
     setDeleting(true);
 
     try {
-      // 1. Manually delete all dependencies so the database doesn't block the request
+      console.log(`Starting deletion process for project: ${projectId} from settings...`);
+
+      // 1. Delete Dependencies
       await supabase.from("tasks").delete().eq("project_id", projectId);
       await supabase.from("backlog_tasks").delete().eq("project_id", projectId);
       await supabase.from("sprints").delete().eq("project_id", projectId);
       await supabase.from("project_members").delete().eq("project_id", projectId);
 
-      // 2. Finally, delete the project
-      const { error } = await supabase.from("projects").delete().eq("id", projectId);
+      // 2. Delete Project AND .select() to verify
+      console.log("Deleting core project...");
+      const { data, error: projectErr } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectId)
+        .select(); // <--- MAGIC BULLET
       
-      if (error) throw error;
+      if (projectErr) throw projectErr;
       
-      // Force a hard redirect to clear Next.js memory cache
-      window.location.href = "/dashboard";
+      // Check for silent failure
+      if (!data || data.length === 0) {
+        throw new Error("Supabase blocked the delete! Your database Row Level Security (RLS) is preventing it. Run the SQL script provided to fix this.");
+      }
+
+      console.log("Project successfully deleted! Redirecting...");
+      
+      // Force fresh UI load
+      window.location.href = `/dashboard?ref=${Date.now()}`;
+      
     } catch (err: any) {
-      alert(`Failed to delete project: ${err.message}`);
+      console.error("CRITICAL DELETE ERROR:", err);
+      alert(err.message);
       setDeleting(false);
     }
   };

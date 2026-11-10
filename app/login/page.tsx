@@ -57,7 +57,7 @@ export default function Login() {
           {/* Blank image for logo as requested */}
           <div className="w-12 h-12 bg-border rounded-md mb-4 flex items-center justify-center overflow-hidden">
              {/* Replace src with your actual logo path later */}
-             <img src="/placeholder.png" alt="Logo" className="w-full h-full object-cover opacity-0" />
+             <img src="/placeholder.png" alt="Logo" className="w-full h-full object-cover " />
           </div>
           <h1 className="text-2xl font-bold">{isLogin ? "Welcome Back" : "Create Account"}</h1>
         </div>
