@@ -102,7 +102,7 @@ export default function TeamPage() {
       </div>
 
       <div className="bg-background border border-border rounded-xl shadow-sm flex-1 flex flex-col overflow-hidden">
-        {/* Scrollable Container for Table */}
+        {}
         <div className="overflow-auto custom-scrollbar flex-1">
           <table className="w-full text-left border-collapse min-w-[700px]">
             <thead className="sticky top-0 z-10 bg-surface border-b border-border shadow-sm">
@@ -163,7 +163,15 @@ export default function TeamPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Role</label>
-                <input type="text" required value={newRole} onChange={(e) => setNewRole(e.target.value)} className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:border-accent" />
+                <input type="text" required list="role-suggestions" value={newRole} onChange={(e) => setNewRole(e.target.value)} className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:border-accent" placeholder="e.g. Software Architect" />
+                <datalist id="role-suggestions">
+                  <option value="Project Manager" />
+                  <option value="Software Architect" />
+                  <option value="UI Designer" />
+                  <option value="Documentation" />
+                  <option value="Quality Assurance" />
+                  <option value="member" />
+                </datalist>
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setEditingMember(null)} className="px-4 py-2 text-sm font-medium border border-transparent hover:border-border rounded-md">Cancel</button>
