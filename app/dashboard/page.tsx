@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Plus,
   FolderKanban,
@@ -12,6 +13,7 @@ import {
   Lock,
   CheckCircle2,
   AlertCircle,
+  Shield,
 } from "lucide-react";
 
 function DashboardContent() {
@@ -32,6 +34,7 @@ function DashboardContent() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const router = useRouter();
 
@@ -50,6 +53,23 @@ function DashboardContent() {
     }
 
     setUserEmail(userData.user.email || "");
+
+    const adminEmailEnv = (
+      process.env.NEXT_PUBLIC_ADMIN_EMAIL ||
+      process.env.NEXT_PUBLIC_OWNER_EMAIL ||
+      ""
+    ).toLowerCase();
+
+    const { data: myProfile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", userData.user.id)
+      .single();
+
+    setIsAdmin(
+      Boolean(myProfile?.is_admin) ||
+        (!!adminEmailEnv && userData.user.email?.toLowerCase() === adminEmailEnv)
+    );
 
     const { data, error } = await supabase
       .from("project_members")
@@ -179,7 +199,14 @@ function DashboardContent() {
           <h1 className="text-2xl font-bold">Klaymore Hub</h1>
         </div>
 
-        <div className="flex items-center gap-4">
+        {isAdmin && (
+            <Link
+              href="/admin-dashboard"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-accent/10 text-accent border border-accent/20 hover:bg-accent hover:text-white rounded-md transition-colors"
+            >
+              <Shield size={14} /> Admin
+            </Link>
+          )}
           <button
             onClick={openPasswordModal}
             className="p-2 text-foreground/60 hover:text-foreground hover:bg-surface border border-transparent hover:border-border rounded-md transition-colors"
@@ -194,7 +221,6 @@ function DashboardContent() {
           >
             Sign Out
           </button>
-        </div>
       </div>
 
       <div className="max-w-6xl mx-auto">
