@@ -191,18 +191,19 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-background text-foreground p-8">
-      <div className="max-w-6xl mx-auto flex justify-between items-center mb-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-border rounded-md flex items-center justify-center overflow-hidden">
+      <header className="max-w-6xl mx-auto flex justify-between items-center gap-4 mb-10">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 bg-border rounded-md flex items-center justify-center overflow-hidden flex-shrink-0">
             <img src="/placeholder.png" alt="Logo" className="w-full h-full object-cover" />
           </div>
-          <h1 className="text-2xl font-bold">Klaymore Hub</h1>
+          <h1 className="text-xl sm:text-2xl font-bold truncate">Klaymore Hub</h1>
         </div>
 
-        {isAdmin && (
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {isAdmin && (
             <Link
               href="/admin-dashboard"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-accent/10 text-accent border border-accent/20 hover:bg-accent hover:text-white rounded-md transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-accent/10 text-accent border border-accent/20 hover:bg-accent hover:text-white rounded-md transition-colors whitespace-nowrap"
             >
               <Shield size={14} /> Admin
             </Link>
@@ -215,13 +216,15 @@ function DashboardContent() {
           >
             <Settings size={18} />
           </button>
+          <div className="h-5 w-px bg-border mx-1 hidden sm:block" />
           <button
             onClick={handleLogout}
-            className="text-sm text-foreground/60 hover:text-foreground"
+            className="text-sm font-medium text-foreground/60 hover:text-foreground px-2 py-1.5 rounded-md hover:bg-surface transition-colors whitespace-nowrap"
           >
             Sign Out
           </button>
-      </div>
+        </div>
+      </header>
 
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
